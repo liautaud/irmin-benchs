@@ -23,6 +23,9 @@ let create ?(flags = []) () =
   Logs.debug (fun l -> l "Creating temporary file %s." path);
   Unix.openfile path (Unix.[ O_CREAT; O_RDWR ] @ flags) 0o644
 
+(** Allows the OS to flush its buffers for a given file descriptor. *)
+let fsync = Syscalls.fsync
+
 (** Seeks a Unix file descriptor. *)
 let lseek fd off =
   let r = Unix.LargeFile.lseek fd off Unix.SEEK_SET in
@@ -130,11 +133,15 @@ let bench_sequential t n =
         for _ = 0 to n - 1 do
           write file (random_bytes 128)
         done);
+    fsync file;
     lseek file 0L;
+
     measure t "sequential.read" n (fun () ->
         for _ = 0 to n - 1 do
           ignore @@ read file 128 buffer
-        done)
+        done);
+    fsync file;
+    lseek file 0L
   done;
   Unix.close file
 
@@ -151,11 +158,15 @@ let bench_append t n =
         for _ = 0 to n - 1 do
           write file (random_bytes 128)
         done);
+    fsync file;
     lseek file 0L;
+
     measure t "append.read" n (fun () ->
         for _ = 0 to n - 1 do
           ignore @@ read file 128 buffer
-        done)
+        done);
+    fsync file;
+    lseek file 0L
   done;
   Unix.close file
 
@@ -169,17 +180,22 @@ let bench_random t n =
   for _ = 0 to nb_runs do
     let offsets = Array.init n (fun i -> i * 128) in
     random_shuffle offsets;
+
     measure t "random.write" n (fun () ->
         for i = 0 to n - 1 do
           lseek file (Int64.of_int offsets.(i));
           write file (random_bytes 128)
         done);
+    fsync file;
     lseek file 0L;
+
     measure t "random.read" n (fun () ->
         for i = 0 to n - 1 do
           lseek file (Int64.of_int offsets.(i));
           ignore @@ read file 128 buffer
-        done)
+        done);
+    fsync file;
+    lseek file 0L
   done;
   Unix.close file
 
@@ -198,11 +214,15 @@ let bench_random_p t n =
         for i = 0 to n - 1 do
           pwrite file (Int64.of_int offsets.(i)) (random_bytes 128)
         done);
+    fsync file;
     lseek file 0L;
+
     measure t "random.pread" n (fun () ->
         for i = 0 to n - 1 do
           ignore @@ pread file (Int64.of_int offsets.(i)) 128 buffer
-        done)
+        done);
+    fsync file;
+    lseek file 0L
   done;
   Unix.close file
 

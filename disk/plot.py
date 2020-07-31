@@ -20,7 +20,7 @@ with open(path) as file:
 
 def scatter(ax, key, label):
     x, y = zip(*data[key])
-    ax.scatter(x, y, label=label, s=10)
+    ax.scatter(x, y, label=label, s=6)
 
     # Display a linear regression of the same color.
     model = LinearRegression()
@@ -40,6 +40,7 @@ fig.suptitle("Read and write performance using different disk access patterns", 
 scatter(axs[0], "sequential.read", "Sequential read")
 scatter(axs[0], "append.read", "Sequential read with O_APPEND")
 scatter(axs[0], "random.read", "Random-offset read")
+scatter(axs[0], "random.pread", "Random-offset read with pread")
 axs[0].legend()
 axs[0].set_xlabel("Number of 128-byte blocks read", fontstyle="italic", labelpad=10)
 axs[0].set_ylabel("Duration (ms)", fontstyle="italic", labelpad=20)
@@ -47,6 +48,7 @@ axs[0].set_ylabel("Duration (ms)", fontstyle="italic", labelpad=20)
 scatter(axs[1], "sequential.write", "Sequential write")
 scatter(axs[1], "append.write", "Sequential write with O_APPEND")
 scatter(axs[1], "random.write", "Random-offset write")
+scatter(axs[1], "random.pwrite", "Random-offset write with pwrite")
 axs[1].legend()
 axs[1].set_xlabel("Number of 128-byte blocks written", fontstyle="italic", labelpad=10)
 axs[1].set_ylabel("Duration (ms)", fontstyle="italic", labelpad=25)
