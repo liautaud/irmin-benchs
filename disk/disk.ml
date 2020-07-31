@@ -10,10 +10,16 @@ let ( ++ ) = Int64.add
 let ( -- ) = Int64.sub
 
 (** Number of times each measure is taken and averaged. *)
-let nb_runs = 200
+let nb_runs = 500
 
 (** Values of [n] to sample. *)
-let nspace = Owl.Mat.logspace 1. 100. 200
+let nspace =
+  Owl.Mat.logspace ~base:2. 0. 14. 500
+  |> Owl.Mat.to_array |> Array.map int_of_float
+  |> Array.fold_left
+       (fun x n -> match x with m :: _ when m = n -> x | _ -> n :: x)
+       []
+  |> List.rev
 
 (** Returns a file descriptor opened to a new temporary file. *)
 let create ?(flags = []) () =
@@ -95,20 +101,20 @@ let summarize t =
 
 (* Benchmark 1:
    -----------
-  Sequentially writes and reads [n] 4096-byte blocks of data to the disk. *)
+  Sequentially writes and reads [n] 128-byte blocks of data to the disk. *)
 let bench_sequential t n =
   Logs.info (fun l -> l "Starting bench_sequential with n = %n." n);
   let file = create () in
-  let buffer = Bytes.create 4096 in
+  let buffer = Bytes.create 128 in
   for _ = 0 to nb_runs do
     measure t "sequential.write" n (fun () ->
         for _ = 0 to n - 1 do
-          write file (random_bytes 4096)
+          write file (random_bytes 128)
         done);
     lseek file 0L;
     measure t "sequential.read" n (fun () ->
         for _ = 0 to n - 1 do
-          ignore @@ read file 4096 buffer
+          ignore @@ read file 128 buffer
         done)
   done;
   Unix.close file
@@ -116,45 +122,45 @@ let bench_sequential t n =
 (* Benchmark 2:
    -----------
 
-   Sequentially writes and reads [n] 4096-byte block of data to the disk, but
+   Sequentially writes and reads [n] 128-byte block of data to the disk, but
    opening the file descriptor with [O_APPEND]. *)
 let bench_append t n =
   Logs.info (fun l -> l "Starting bench_append with n = %n." n);
   let file = create ~flags:Unix.[ O_APPEND ] () in
-  let buffer = Bytes.create 4096 in
+  let buffer = Bytes.create 128 in
   for _ = 0 to nb_runs do
     measure t "append.write" n (fun () ->
         for _ = 0 to n - 1 do
-          write file (random_bytes 4096)
+          write file (random_bytes 128)
         done);
     lseek file 0L;
     measure t "append.read" n (fun () ->
         for _ = 0 to n - 1 do
-          ignore @@ read file 4096 buffer
+          ignore @@ read file 128 buffer
         done)
   done;
   Unix.close file
 
 (* Benchmark 3:
    -----------
-   Writes and reads [n] 4096-byte blocks of data to the disk at random offsets. *)
+   Writes and reads [n] 128-byte blocks of data to the disk at random offsets. *)
 let bench_random t n =
   Logs.info (fun l -> l "Starting bench_random with n = %n." n);
   let file = create () in
-  let buffer = Bytes.create 4096 in
+  let buffer = Bytes.create 128 in
   for _ = 0 to nb_runs do
-    let offsets = Array.init n (fun i -> i * 4096) in
+    let offsets = Array.init n (fun i -> i * 128) in
     random_shuffle offsets;
     measure t "random.write" n (fun () ->
         for i = 0 to n - 1 do
           lseek file (Int64.of_int offsets.(i));
-          write file (random_bytes 4096)
+          write file (random_bytes 128)
         done);
     lseek file 0L;
     measure t "random.read" n (fun () ->
         for i = 0 to n - 1 do
           lseek file (Int64.of_int offsets.(i));
-          ignore @@ read file 4096 buffer
+          ignore @@ read file 128 buffer
         done)
   done;
   Unix.close file
@@ -164,10 +170,10 @@ let () =
   Logs.set_level (Some Logs.Debug);
   Logs.set_reporter (Logs_fmt.reporter ());
   let t = Hashtbl.create 1_000_000 in
-  Owl.Mat.iter (fun n ->
-    let n = int_of_float n in
-    bench_sequential t n;
-    bench_append t n;
-    bench_random t n)
+  List.iter
+    (fun n ->
+      bench_sequential t n;
+      bench_append t n;
+      bench_random t n)
     nspace;
   summarize t
