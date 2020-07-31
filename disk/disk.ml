@@ -34,14 +34,6 @@ let lseek fd off =
   let r = Unix.LargeFile.lseek fd off Unix.SEEK_SET in
   assert (r >= 0L)
 
-(** Writes bytes to a Unix file descriptor. *)
-let write fd buf =
-  let rec aux off len =
-    let w = Unix.write fd buf off len in
-    if w = 0 || w = len then () else (aux [@tailcall]) (off + w) (len - w)
-  in
-  (aux [@tailcall]) 0 (Bytes.length buf)
-
 (** Reads bytes from a Unix file descriptor. *)
 let read fd len buf =
   let rec aux off len =
@@ -51,6 +43,39 @@ let read fd len buf =
     else (aux [@tailcall]) (off + r) (len - r)
   in
   (aux [@tailcall]) 0 len
+
+(** Writes bytes to a Unix file descriptor. *)
+let write fd buf =
+  let rec aux off len =
+    let w = Unix.write fd buf off len in
+    if w = 0 || w = len then () else (aux [@tailcall]) (off + w) (len - w)
+  in
+  (aux [@tailcall]) 0 (Bytes.length buf)
+
+(** Reads bytes from a Unix file descriptor at a given offset. *)
+let pread fd fd_offset length buffer =
+  let rec aux fd_offset buffer_offset length =
+    let r = Syscalls.pread ~fd ~fd_offset ~buffer ~buffer_offset ~length in
+    if r = 0 then buffer_offset (* end of file *)
+    else if r = length then buffer_offset + r
+    else
+      (aux [@tailcall])
+        (fd_offset ++ Int64.of_int r)
+        (buffer_offset + r) (length - r)
+  in
+  (aux [@tailcall]) fd_offset 0 length
+
+(** Writes bytes from a Unix file descriptor at a given offset. *)
+let pwrite fd fd_offset buffer =
+  let rec aux fd_offset buffer_offset length =
+    let w = Syscalls.pwrite ~fd ~fd_offset ~buffer ~buffer_offset ~length in
+    if w = 0 || w = length then ()
+    else
+      (aux [@tailcall])
+        (fd_offset ++ Int64.of_int w)
+        (buffer_offset + w) (length - w)
+  in
+  (aux [@tailcall]) fd_offset 0 (Bytes.length buffer)
 
 (** Returns a printable ASCII character at random. *)
 let random_char () = Char.chr (97 + Random.int 26)
@@ -121,7 +146,6 @@ let bench_sequential t n =
 
 (* Benchmark 2:
    -----------
-
    Sequentially writes and reads [n] 128-byte block of data to the disk, but
    opening the file descriptor with [O_APPEND]. *)
 let bench_append t n =
@@ -165,6 +189,29 @@ let bench_random t n =
   done;
   Unix.close file
 
+(* Benchmark 4:
+   -----------
+   Writes and reads [n] 128-byte blocks of data to the disk at random offsets,
+   but using the [pread] and [pwrite] system calls to avoid the calls to [seek]. *)
+let bench_random_p t n =
+  Logs.info (fun l -> l "Starting bench_random_p with n = %n." n);
+  let file = create () in
+  let buffer = Bytes.create 128 in
+  for _ = 0 to nb_runs do
+    let offsets = Array.init n (fun i -> i * 128) in
+    random_shuffle offsets;
+    measure t "random.pwrite" n (fun () ->
+        for i = 0 to n - 1 do
+          pwrite file (Int64.of_int offsets.(i)) (random_bytes 128)
+        done);
+    lseek file 0L;
+    measure t "random.pread" n (fun () ->
+        for i = 0 to n - 1 do
+          ignore @@ pread file (Int64.of_int offsets.(i)) 128 buffer
+        done)
+  done;
+  Unix.close file
+
 (** Runs the benchmarks and summarizes the measurements. *)
 let () =
   Logs.set_level (Some Logs.Debug);
@@ -174,6 +221,7 @@ let () =
     (fun n ->
       bench_sequential t n;
       bench_append t n;
-      bench_random t n)
+      bench_random t n;
+      bench_random_p t n)
     nspace;
   summarize t

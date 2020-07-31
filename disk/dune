@@ -1,3 +1,6 @@
 (executable
+ (foreign_stubs
+  (language c)
+  (names fsync pread pwrite))
  (name disk)
- (libraries owl bos yojson fmt logs logs.fmt))
+ (libraries owl bos yojson fmt logs logs.fmt unix))
