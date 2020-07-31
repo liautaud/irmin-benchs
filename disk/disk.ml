@@ -13,13 +13,7 @@ let ( -- ) = Int64.sub
 let nb_runs = 500
 
 (** Values of [n] to sample. *)
-let nspace =
-  Owl.Mat.logspace ~base:2. 0. 14. 500
-  |> Owl.Mat.to_array |> Array.map int_of_float
-  |> Array.fold_left
-       (fun x n -> match x with m :: _ when m = n -> x | _ -> n :: x)
-       []
-  |> List.rev
+let nspace = List.init 200 (fun i -> i * 5)
 
 (** Returns a file descriptor opened to a new temporary file. *)
 let create ?(flags = []) () =
