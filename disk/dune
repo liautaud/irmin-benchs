@@ -3,4 +3,4 @@
   (language c)
   (names fsync pread pwrite))
  (name disk)
- (libraries owl bos yojson fmt logs logs.fmt unix))
+ (libraries bos yojson fmt logs logs.fmt unix))
