@@ -1,0 +1,15 @@
+(executable
+ (name diet)
+ (libraries bechamel diet fmt logs logs.fmt yojson))
+
+(rule
+ (targets output.json)
+ (action
+  (with-stdout-to
+   %{targets}
+   (run ./diet.exe))))
+
+(rule
+ (targets output.html)
+ (action
+  (system "%{bin:bechamel-html} < %{dep:output.json} > %{targets}")))
