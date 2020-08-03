@@ -15,8 +15,8 @@ let random_bytes n =
 
 (** Generates a random interval. *)
 let generate_interval () =
-  let a = Random.int 100_000 in
-  let b = a + Random.int 1_000 in
+  let a = Random.int 1_000_000 in
+  let b = a + Random.int 200 in
   Diet.Interval.make a b
 
 (** Generates a DIET tree of a given [size] pre-filled with random intervals. *)
@@ -45,7 +45,7 @@ let take_interval size =
 
 (** The set of tests to be performed. *)
 let test =
-  let args = List.init 5 (fun i -> (i * 100) + 1) in
+  let args = List.init 300 (fun i -> (i + 1) * 10) in
   Test.make_grouped ~name:"diet"
     [
       Test.make_indexed ~name:"add_interval" ~args add_interval;
@@ -77,7 +77,7 @@ let summarize t =
   let translate_entry k v o =
     match Analyze.OLS.estimates v with
     | Some [ x ] ->
-        Scanf.sscanf k "%s@:%n" (fun n m ->
+        Scanf.sscanf k "%s@:%d" (fun n m ->
             `List [ `String n; `Int m; `Float x ] :: o)
     | _ -> o
   in
